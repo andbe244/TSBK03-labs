@@ -1,3 +1,18 @@
-lab0/bin/
-lab0/obj/
-lab0/TSBK01-
+# Byggmappar var som helst
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+
+# Byggartefakter
+*.o
+*.exe
+*.dll
+*.pdb
+*.cbp
+
+# Code::Blocks-användarfiler
+*.layout
+
+# Ditt projekt: alla filer som börjar på TSBK01- i lab0/
+lab0/TSBK01-*
