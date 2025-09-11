@@ -143,49 +143,66 @@ void display(void)
 
     DrawModel(model1, phongshader, "in_Position", "in_Normal", NULL);
 
-    // 2. Horisontellt lågpassfilter (fbo1 -> fbo2)
-    glUseProgram(lpx);
-    glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f);
-    runfilter(lpx, fbo1, 0L, fbo2);
+    // // 2. Horisontellt lågpassfilter (fbo1 -> fbo2)
+    // glUseProgram(lpx);
+    // glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f);
+    // runfilter(lpx, fbo1, 0L, fbo2);
 
-	extractBrightAreas();
+	// extractBrightAreas();
 
-    // 3. Vertikalt lågpassfilter (fbo2 -> fbo3)
-    glUseProgram(lpy);
-    glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height);
-    runfilter(lpy, fbo2, 0L, fbo3);
+    // // 3. Vertikalt lågpassfilter (fbo2 -> fbo3)
+    // glUseProgram(lpy);
+    // glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height);
+    // runfilter(lpy, fbo2, 0L, fbo3);
 
-    // 4. Rita resultatet från fbo3 till skärmen
-    useFBO(0L, fbo3, 0L);
-    glClearColor(0.0, 0.0, 0.0, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // // 4. Rita resultatet från fbo3 till skärmen
+    // useFBO(0L, fbo3, 0L);
+    // glClearColor(0.0, 0.0, 0.0, 0);
+    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 
-	// --- 1d: Blooming ------------------------------
-	// 1. Threshold pass (fbo3 → fbo4)
+	// // --- 1d: Blooming ------------------------------
+	// // 1. Threshold pass (fbo3 → fbo4)
+	// glUseProgram(threshold);
+	// glUniform1f(glGetUniformLocation(threshold, "threshold"), 1.0f); // justera värdet
+	// runfilter(threshold, fbo3, 0L, fbo4);
+
+	// // 2. Blur threshold-bilden (fbo4 → fbo5 → fbo6)
+	// glUseProgram(lpx);
+	// glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f);
+	// runfilter(lpx, fbo4, 0L, fbo5);
+
+	// glUseProgram(lpy);
+	// glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height);
+	// runfilter(lpy, fbo5, 0L, fbo6);
+
+	// // 3. Kombinera original (fbo3) + blurred highlights (fbo6) → skärm
+	// glUseProgram(add); // ny shader för att addera två texturer
+	// runfilter(add, fbo3, fbo6, 0L);
+
+	// 1. Rendera kaninen
+	useFBO(fbo1, 0L, 0L);
+	DrawModel(model1, phongshader, "in_Position", "in_Normal", NULL);
+
+	// 2. Threshold fbo1 → fbo4
 	glUseProgram(threshold);
-	glUniform1f(glGetUniformLocation(threshold, "threshold"), 1.0f); // justera värdet
-	runfilter(threshold, fbo3, 0L, fbo4);
+	glUniform1f(glGetUniformLocation(threshold, "threshold"), 1.0f);
+	runfilter(threshold, fbo1, 0L, fbo4);
 
-	// 2. Blur threshold-bilden (fbo4 → fbo5 → fbo6)
+	// 3. Blur threshold-bilden fbo4 → fbo5 → fbo6
 	glUseProgram(lpx);
-	glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f);
+	glUniform2f(glGetUniformLocation(lpx, "texelSize"), 5.0f / width, 0.0f);
 	runfilter(lpx, fbo4, 0L, fbo5);
 
 	glUseProgram(lpy);
-	glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height);
+	glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 5.0f / height);
 	runfilter(lpy, fbo5, 0L, fbo6);
 
-	// 3. Kombinera original (fbo3) + blurred highlights (fbo6) → skärm
-	glUseProgram(add); // ny shader för att addera två texturer
-	runfilter(add, fbo3, fbo6, 0L);
+	// 4. Kombinera original (fbo1) + blurrade högdagrar (fbo6) direkt på skärmen
+	glUseProgram(add);
+	runfilter(add, fbo1, fbo6, 0L);  // 0L = render to screen
 
-    // glUseProgram(plaintextureshader);
-    // glUniform1i(glGetUniformLocation(plaintextureshader, "texUnit"), 0);
-    // glDisable(GL_CULL_FACE);
-    // glDisable(GL_DEPTH_TEST);
-
-    DrawModel(squareModel, plaintextureshader, "in_Position", NULL, "in_TexCoord");
+	// Ingen plaintextureshader efter detta!
 
     glutSwapBuffers();
 }

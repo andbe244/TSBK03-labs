@@ -8,8 +8,8 @@ out vec4 out_Color;
 void main(void)
 {
     const float w0 = 1.0;
-    const float w1 = 4.0;
-    const float w2 = 7.0;
+    const float w1 = 8.0;
+    const float w2 = 16.0;
     const float size = (w0 + w1 + w2 + w1 + w0);
 
     vec3 result = vec3(0.0);
