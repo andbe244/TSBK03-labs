@@ -120,6 +120,15 @@ void display(void)
 
 	// Done rendering the FBO! Set up for rendering on screen, using the result as texture!
 
+	//Lågpassfilter: rendera fbo1 --> fbo2
+	useFBO(fbo2, fbo1, 0L); // fbo1 = input, fbo2 = output
+	glUseProgram(plaintextureshader);
+	int width = glutGet(GLUT_WINDOW_WIDTH);
+	int height = glutGet(GLUT_WINDOW_HEIGHT);
+	glUniform2f(glGetUniformLocation(plaintextureshader, "texelSize"),
+	            1.0f / width, 1.0f / height);
+	DrawModel(squareModel, plaintextureshader, "in_Position", NULL, "in_TexCoord");
+
 //	glFlush(); // Can cause flickering on some systems. Can also be necessary to make drawing complete.
 	useFBO(0L, fbo1, 0L);
 	glClearColor(0.0, 0.0, 0.0, 0);
