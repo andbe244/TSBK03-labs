@@ -87,80 +87,90 @@ void init(void)
 	modelToWorldMatrix = IdentityMatrix();
 }
 
+// Run a filter shader on the input texture(s) and render to the output FBO
+void runfilter(GLuint shader, FBOstruct *in1, FBOstruct *in2, FBOstruct *out)
+
+{
+
+    glUseProgram(shader);
+
+    
+
+    // Many of these things would be more efficiently done once and for all
+
+    glDisable(GL_CULL_FACE);
+
+    glDisable(GL_DEPTH_TEST);
+
+    glUniform1i(glGetUniformLocation(shader, "texUnit"), 0);
+
+    glUniform1i(glGetUniformLocation(shader, "texUnit2"), 1);
+
+
+
+    useFBO(out, in1, in2);
+
+
+
+    DrawModel(squareModel, shader, "in_Position", NULL, "in_TexCoord");
+
+    glFlush();
+
+}
+
 //-------------------------------callback functions------------------------------------------
 void display(void)
 {
-	mat4 vm2;
-	
-	// This function is called whenever it is time to render
-	//  a new frame; due to the idle()-function below, this
-	//  function will get called several times per second
+    mat4 vm2;
 
-	// render to fbo1!
-	useFBO(fbo1, 0L, 0L);
+    // 1. Rendera kaninen till fbo1
+    useFBO(fbo1, 0L, 0L);
+    glClearColor(0.2, 0.2, 0.5, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// Clear framebuffer & zbuffer
-	glClearColor(0.2,0.2,0.5,0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glUseProgram(phongshader);
+    vm2 = viewMatrix * modelToWorldMatrix;
+    vm2 = vm2 * T(0, -8.5, 0);
+    vm2 = vm2 * S(80,80,80);
 
-	// Activate shader program
-	glUseProgram(phongshader);
+    int width = glutGet(GLUT_WINDOW_WIDTH);
+    int height = glutGet(GLUT_WINDOW_HEIGHT);
 
-	vm2 = viewMatrix * modelToWorldMatrix;
-	// Scale and place bunny since it is too small
-	vm2 = vm2 * T(0, -8.5, 0);
-	vm2 = vm2 * S(80,80,80);
+    glUniformMatrix4fv(glGetUniformLocation(phongshader, "projectionMatrix"), 1, GL_TRUE, projectionMatrix.m);
+    glUniformMatrix4fv(glGetUniformLocation(phongshader, "modelviewMatrix"), 1, GL_TRUE, vm2.m);
+    glUniform1i(glGetUniformLocation(phongshader, "texUnit"), 0);
 
-	//texelstorlek som hämtas från fönstret
-	int width = glutGet(GLUT_WINDOW_WIDTH);
-	int height = glutGet(GLUT_WINDOW_HEIGHT);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
-	glUniformMatrix4fv(glGetUniformLocation(phongshader, "projectionMatrix"), 1, GL_TRUE, projectionMatrix.m);
-	glUniformMatrix4fv(glGetUniformLocation(phongshader, "modelviewMatrix"), 1, GL_TRUE, vm2.m);
-	glUniform1i(glGetUniformLocation(phongshader, "texUnit"), 0);
+    DrawModel(model1, phongshader, "in_Position", "in_Normal", NULL);
 
-	// Enable Z-buffering
-	glEnable(GL_DEPTH_TEST);
-	// Enable backface culling
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
+    // 2. Horisontellt lågpassfilter (fbo1 -> fbo2)
+    glUseProgram(lpx);
+    glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f);
+    runfilter(lpx, fbo1, 0L, fbo2);
 
-	DrawModel(model1, phongshader, "in_Position", "in_Normal", NULL);
+    // 3. Vertikalt lågpassfilter (fbo2 -> fbo3)
+    glUseProgram(lpy);
+    glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height);
+    runfilter(lpy, fbo2, 0L, fbo3);
 
-	// Done rendering the FBO! Set up for rendering on screen, using the result as texture!
+    // 4. Rita resultatet från fbo3 till skärmen
+    useFBO(0L, fbo3, 0L);
+    glClearColor(0.0, 0.0, 0.0, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// 1b: Lågpassfilter horisontellt (fbo1 -> fbo2)
-	useFBO(fbo2, fbo1, 0L);
-	glUseProgram(lp);
-	glUniform2f(glGetUniformLocation(lp, "texelSize"), 1.0f / width, 0.0f); // horisontell
-	DrawModel(squareModel, lp, "in_Position", NULL, "in_TexCoord");
-	
-	/*
-	useFBO(fbo2, fbo1, 0L);
-	glUseProgram(lpx);
-	glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f); // horisontell
-	DrawModel(squareModel, lpx, "in_Position", NULL, "in_TexCoord");
+    glUseProgram(plaintextureshader);
+    glUniform1i(glGetUniformLocation(plaintextureshader, "texUnit"), 0);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
 
-	// 1c: Lågpassfilter vertikalt (fbo2 -> fbo3)
-	useFBO(fbo3, fbo2, 0L);
-	glUseProgram(lpy);
-	glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height); // vertikal
-	DrawModel(squareModel, lpy, "in_Position", NULL, "in_TexCoord");
-	*/
+    DrawModel(squareModel, plaintextureshader, "in_Position", NULL, "in_TexCoord");
 
-//	glFlush(); // Can cause flickering on some systems. Can also be necessary to make drawing complete.
-	useFBO(0L, fbo1, 0L);
-	glClearColor(0.0, 0.0, 0.0, 0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	// Activate second shader program
-	glUseProgram(plaintextureshader);
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_TEST);
-	DrawModel(squareModel, plaintextureshader, "in_Position", NULL, "in_TexCoord");
-
-	glutSwapBuffers();
+    glutSwapBuffers();
 }
+
 
 void reshape(GLsizei w, GLsizei h)
 {
