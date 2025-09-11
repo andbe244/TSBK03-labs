@@ -43,8 +43,8 @@ Model* squareModel;
 
 //----------------------Globals-------------------------------------------------
 Model *model1;
-FBOstruct *fbo1, *fbo2, *fbo3;
-GLuint phongshader = 0, plaintextureshader = 0, lp = 0, lpx = 0, lpy = 0;
+FBOstruct *fbo1, *fbo2, *fbo3, *fbo4, *fbo5, *fbo6;
+GLuint phongshader = 0, plaintextureshader = 0, lp = 0, lpx = 0, lpy = 0, threshold = 0, add = 0;
 
 //-------------------------------------------------------------------------------------
 
@@ -65,13 +65,17 @@ void init(void)
 	lp = loadShaders("lp.vert", "lp.frag");
 	lpx = loadShaders("lpx.vert", "lpx.frag");
 	lpy = loadShaders("lpy.vert", "lpy.frag");
+	threshold = loadShaders("threshold.vert", "threshold.frag");
+	add = loadShaders("add.vert", "add.frag");
 
 	printError("init shader");
 
 	fbo1 = initFBO(initWidth, initHeight, 0);
 	fbo2 = initFBO(initWidth, initHeight, 0);
 	fbo3 = initFBO(initWidth, initHeight, 0);
-	
+	fbo4 = initFBO(initWidth, initHeight, 0);
+	fbo5 = initFBO(initWidth, initHeight, 0);
+	fbo6 = initFBO(initWidth, initHeight, 0);
 
 	// load the model
 	model1 = LoadModel("stanford-bunny.obj");
@@ -89,33 +93,26 @@ void init(void)
 
 // Run a filter shader on the input texture(s) and render to the output FBO
 void runfilter(GLuint shader, FBOstruct *in1, FBOstruct *in2, FBOstruct *out)
-
 {
-
     glUseProgram(shader);
 
-    
-
     // Many of these things would be more efficiently done once and for all
-
-    glDisable(GL_CULL_FACE);
-
+	glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
-
     glUniform1i(glGetUniformLocation(shader, "texUnit"), 0);
-
     glUniform1i(glGetUniformLocation(shader, "texUnit2"), 1);
-
-
-
     useFBO(out, in1, in2);
-
-
 
     DrawModel(squareModel, shader, "in_Position", NULL, "in_TexCoord");
 
     glFlush();
+}
 
+static void extractBrightAreas(void)
+{
+    glUseProgram(threshold);
+    glUniform1f(glGetUniformLocation(threshold, "threshold"), 1.0f);
+    runfilter(threshold, fbo1, 0L, fbo2);
 }
 
 //-------------------------------callback functions------------------------------------------
@@ -151,6 +148,8 @@ void display(void)
     glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f);
     runfilter(lpx, fbo1, 0L, fbo2);
 
+	extractBrightAreas();
+
     // 3. Vertikalt lågpassfilter (fbo2 -> fbo3)
     glUseProgram(lpy);
     glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height);
@@ -161,10 +160,30 @@ void display(void)
     glClearColor(0.0, 0.0, 0.0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(plaintextureshader);
-    glUniform1i(glGetUniformLocation(plaintextureshader, "texUnit"), 0);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
+
+	// --- 1d: Blooming ------------------------------
+	// 1. Threshold pass (fbo3 → fbo4)
+	glUseProgram(threshold);
+	glUniform1f(glGetUniformLocation(threshold, "threshold"), 1.0f); // justera värdet
+	runfilter(threshold, fbo3, 0L, fbo4);
+
+	// 2. Blur threshold-bilden (fbo4 → fbo5 → fbo6)
+	glUseProgram(lpx);
+	glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f);
+	runfilter(lpx, fbo4, 0L, fbo5);
+
+	glUseProgram(lpy);
+	glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height);
+	runfilter(lpy, fbo5, 0L, fbo6);
+
+	// 3. Kombinera original (fbo3) + blurred highlights (fbo6) → skärm
+	glUseProgram(add); // ny shader för att addera två texturer
+	runfilter(add, fbo3, fbo6, 0L);
+
+    // glUseProgram(plaintextureshader);
+    // glUniform1i(glGetUniformLocation(plaintextureshader, "texUnit"), 0);
+    // glDisable(GL_CULL_FACE);
+    // glDisable(GL_DEPTH_TEST);
 
     DrawModel(squareModel, plaintextureshader, "in_Position", NULL, "in_TexCoord");
 
