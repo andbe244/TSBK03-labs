@@ -43,8 +43,8 @@ Model* squareModel;
 
 //----------------------Globals-------------------------------------------------
 Model *model1;
-FBOstruct *fbo1, *fbo2;
-GLuint phongshader = 0, plaintextureshader = 0;
+FBOstruct *fbo1, *fbo2, *fbo3;
+GLuint phongshader = 0, plaintextureshader = 0, lp = 0, lpx = 0, lpy = 0;
 
 //-------------------------------------------------------------------------------------
 
@@ -62,11 +62,16 @@ void init(void)
 	// Load and compile shaders
 	plaintextureshader = loadShaders("plaintextureshader.vert", "plaintextureshader.frag");  // puts texture on teapot
 	phongshader = loadShaders("phong.vert", "phong.frag");  // renders with light (used for initial renderin of teapot)
+	lp = loadShaders("lp.vert", "lp.frag");
+	lpx = loadShaders("lpx.vert", "lpx.frag");
+	lpy = loadShaders("lpy.vert", "lpy.frag");
 
 	printError("init shader");
 
 	fbo1 = initFBO(initWidth, initHeight, 0);
 	fbo2 = initFBO(initWidth, initHeight, 0);
+	fbo3 = initFBO(initWidth, initHeight, 0);
+	
 
 	// load the model
 	model1 = LoadModel("stanford-bunny.obj");
@@ -106,6 +111,10 @@ void display(void)
 	vm2 = vm2 * T(0, -8.5, 0);
 	vm2 = vm2 * S(80,80,80);
 
+	//texelstorlek som hämtas från fönstret
+	int width = glutGet(GLUT_WINDOW_WIDTH);
+	int height = glutGet(GLUT_WINDOW_HEIGHT);
+
 	glUniformMatrix4fv(glGetUniformLocation(phongshader, "projectionMatrix"), 1, GL_TRUE, projectionMatrix.m);
 	glUniformMatrix4fv(glGetUniformLocation(phongshader, "modelviewMatrix"), 1, GL_TRUE, vm2.m);
 	glUniform1i(glGetUniformLocation(phongshader, "texUnit"), 0);
@@ -120,14 +129,24 @@ void display(void)
 
 	// Done rendering the FBO! Set up for rendering on screen, using the result as texture!
 
-	//Lågpassfilter: rendera fbo1 --> fbo2
-	useFBO(fbo2, fbo1, 0L); // fbo1 = input, fbo2 = output
-	glUseProgram(plaintextureshader);
-	int width = glutGet(GLUT_WINDOW_WIDTH);
-	int height = glutGet(GLUT_WINDOW_HEIGHT);
-	glUniform2f(glGetUniformLocation(plaintextureshader, "texelSize"),
-	            1.0f / width, 1.0f / height);
-	DrawModel(squareModel, plaintextureshader, "in_Position", NULL, "in_TexCoord");
+	// 1b: Lågpassfilter horisontellt (fbo1 -> fbo2)
+	useFBO(fbo2, fbo1, 0L);
+	glUseProgram(lp);
+	glUniform2f(glGetUniformLocation(lp, "texelSize"), 1.0f / width, 0.0f); // horisontell
+	DrawModel(squareModel, lp, "in_Position", NULL, "in_TexCoord");
+	
+	/*
+	useFBO(fbo2, fbo1, 0L);
+	glUseProgram(lpx);
+	glUniform2f(glGetUniformLocation(lpx, "texelSize"), 1.0f / width, 0.0f); // horisontell
+	DrawModel(squareModel, lpx, "in_Position", NULL, "in_TexCoord");
+
+	// 1c: Lågpassfilter vertikalt (fbo2 -> fbo3)
+	useFBO(fbo3, fbo2, 0L);
+	glUseProgram(lpy);
+	glUniform2f(glGetUniformLocation(lpy, "texelSize"), 0.0f, 1.0f / height); // vertikal
+	DrawModel(squareModel, lpy, "in_Position", NULL, "in_TexCoord");
+	*/
 
 //	glFlush(); // Can cause flickering on some systems. Can also be necessary to make drawing complete.
 	useFBO(0L, fbo1, 0L);
@@ -136,7 +155,6 @@ void display(void)
 
 	// Activate second shader program
 	glUseProgram(plaintextureshader);
-
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
 	DrawModel(squareModel, plaintextureshader, "in_Position", NULL, "in_TexCoord");
